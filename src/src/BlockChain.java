@@ -14,20 +14,20 @@ public class BlockChain
 	{
 		if(blocks.size() > 0)
 		{
-			Block back = blocks.get(blocks.size() - 1);
+			Letter back = blocks.get(blocks.size() - 1);
 			byte[] head = digest.digest(back.toBytes());
-			blocks.add(new Block(head, letter, author, digest));
+			blocks.add(new Letter(head, letter, author));
 		}
 		else
-			blocks.add(new Block(letter, author, digest));
+			blocks.add(new Letter(letter, author));
 	}
 	
-	public void pop(Block b)
+	public void pop(Letter b)
 	{
 		blocks.remove(blocks.size() - 1);
 	}
 	
-	public void pushAll(List<Block> blocks)
+	public void pushAll(List<Letter> blocks)
 	{
 		blocks.addAll(blocks);
 	}
@@ -42,14 +42,14 @@ public class BlockChain
 		return blocks.get(i).letter;
 	}
 	
-	public List<Block> blocks;
+	public List<Letter> blocks;
 	public MessageDigest digest;
 	
 	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		for(Block b : blocks)
+		for(Letter b : blocks)
 			builder.append(b.letter);
 		return builder.toString();
 	}
