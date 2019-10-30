@@ -1,12 +1,43 @@
 package src;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.function.BiConsumer;
 
 public class tp1 {
+	
+	public static byte[] generateKey()
+	{
+		try {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA", "SUN");
+
+            // Initialize KeyPairGenerator.
+            SecureRandom random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+            keyGen.initialize(1024, random);
+
+            // Generate Key Pairs, a private key and a public key.
+            KeyPair keyPair = keyGen.generateKeyPair();
+            PrivateKey privateKey = keyPair.getPrivate();
+            PublicKey publicKey = keyPair.getPublic();
+
+            Base64.Encoder encoder = Base64.getEncoder();
+            return publicKey.getEncoded();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (NoSuchProviderException e) {
+            e.printStackTrace();
+        }
+		return null;
+	}
 	
 	//EXO1.1
 	public static byte[] sha256 (byte[] s) throws NoSuchAlgorithmException
@@ -122,7 +153,10 @@ public class tp1 {
 			
 			//System.out.println(mine("koff", "jean-pierre", 15));
 			
-			plot_mining();
+			//plot_mining();
+			System.out.println(sha256("").length);
+			System.out.println(generateKey().length);
+			System.out.println(bytesToHex(generateKey()));
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

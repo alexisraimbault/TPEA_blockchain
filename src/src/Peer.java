@@ -6,23 +6,54 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.Provider;
+import java.security.SecureRandom;
+import java.security.Security;
+
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator;
+import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters;
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Peer
 {
 	public int id;
 	public int port;
 	public Serveur serveur;
+	public Connection connection;
 	public Memory memory;
+	public Ed25519PrivateKeyParameters privateKey;
+	public Ed25519PublicKeyParameters publicKey;
+	public String signature;
 	
 	public Peer()
 	{
-		this.memory = new Memory(3);//TODO
+		
 		this.serveur = null;
+		this.connection = null;
+		
+		 System.out.println("ED25519 with BC");
+        Security.addProvider(new BouncyCastleProvider());
+        Provider provider = Security.getProvider("BC");
+        System.out.println("Provider          :" + provider.getName() + " Version: " + provider.getVersion());
+        // generate ed25519 keys
+        SecureRandom RANDOM = new SecureRandom();
+        Ed25519KeyPairGenerator keyPairGenerator = new Ed25519KeyPairGenerator();
+        keyPairGenerator.init(new Ed25519KeyGenerationParameters(RANDOM));
+        AsymmetricCipherKeyPair asymmetricCipherKeyPair = keyPairGenerator.generateKeyPair();
+        privateKey = (Ed25519PrivateKeyParameters) asymmetricCipherKeyPair.getPrivate();
+        publicKey = (Ed25519PublicKeyParameters) asymmetricCipherKeyPair.getPublic();
+        
+        this.memory = new Memory(3, this);
 	}
 	
 	public void startListeningFirst (int port)
 	{
 		this.port = port;
+		this.id = 0;
+		this.signature = tp1.bytesToHex(Ed25519Bc.sign(this.privateKey, this.publicKey, "user "+this.id));
 		new ServeurFirst(this);
 	}
 	
@@ -34,7 +65,7 @@ public class Peer
 	
 	public void connect(int port)
 	{
-		new Connection(port, this);
+		connection = new Connection(port, this);
 	}
 	
 	public void connectFirst(int port)
@@ -43,6 +74,8 @@ public class Peer
 	}
 	
 }
+
+
 
 class Connection extends Thread 
 {
@@ -68,78 +101,19 @@ class Connection extends Thread
 			sortie = new PrintStream(socket.getOutputStream());
 			
 			String line;
+			line = entree.readLine();//hello
+			sortie.println("register " + this.peer.id + " " + tp1.bytesToHex(this.peer.publicKey.getEncoded()));
 			while(true)
 			{
 				line = entree.readLine();
 				System.out.println(peer.port + " : receiving : " + line);
-				if(line.contains("Alex"))
-					sortie.println("hello Alex");
 			}
 		}
 		catch(IOException e) {e.printStackTrace();}
 	}
 }
 
-class ConnectionFirst extends Thread 
-{
-	Socket socket;
-	BufferedReader entree;
-	PrintStream sortie;
-	Peer peer;
-	int port;
 
-	public ConnectionFirst(int port, Peer peer) 
-	{
-		this.port = port;
-		this.peer = peer;
-		this.start();
-	}
-
-	public void run() 
-	{
-		try {
-			System.out.println(peer.port + " : connecting on port : " + port);
-			socket = new Socket("localhost", port);
-			entree = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			sortie = new PrintStream(socket.getOutputStream());
-			
-			int port_to_listen = 0;
-			int port_to_connect = 0;
-			String[] line_content;
-			String line;
-			line = entree.readLine();
-			System.out.println(peer.port + " : receiving : " + line);
-			line_content = line.split(" ");
-			if(line_content.length == 2 && line_content[0].contains("listen"))
-				port_to_listen = Integer.parseInt(line_content[1]);
-			
-			line = entree.readLine();
-			System.out.println(peer.port + " : receiving : " + line);
-			line_content = line.split(" ");
-			if(line_content.length == 2 && line_content[0].contains("connect"))
-				port_to_connect = Integer.parseInt(line_content[1]);
-			
-			peer.serveur.disconnect();
-			
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			
-			peer.startListening(port_to_listen, -1);
-			
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			
-			peer.connect(port_to_connect);
-		}
-		catch(IOException e) {e.printStackTrace();}
-	}
-}
 
 class Link extends Thread 
 {
@@ -174,15 +148,33 @@ class Link extends Thread
 	public void run() 
 	{
 		sortie.println("hello");
-		sortie.println("my name");
-		sortie.println("is Alex");
 		try 
 		{
 			String line;
+			String[] line_content;
 			do 
 			{
 				line = entree.readLine();
 				System.out.println(this.peer.port + " : receiving : " + line);
+				line_content = line.split(" ");
+				if(line_content.length == 3 && line_content[0].equals("register"))
+				{
+					//set public key in mem
+					this.peer.memory.public_keys[Integer.parseInt(line_content[1])] = new Ed25519PublicKeyParameters(line_content[2].getBytes(), 0);
+					//forward message if necessary
+					if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)
+					{
+						while(this.peer.connection == null || this.peer.connection.sortie == null)
+						{
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						}
+						this.peer.connection.sortie.println(line);
+					}
+				}
 			}
 			while(!line.equals("goodbye"));
 			
@@ -193,6 +185,76 @@ class Link extends Thread
 		catch(IOException e) {}
 	}
 }
+
+
+
+class ConnectionFirst extends Thread 
+{
+	Socket socket;
+	BufferedReader entree;
+	PrintStream sortie;
+	Peer peer;
+	int port;
+
+	public ConnectionFirst(int port, Peer peer) 
+	{
+		this.port = port;
+		this.peer = peer;
+		this.start();
+	}
+
+	public void run() 
+	{
+		try {
+			System.out.println(peer.port + " : connecting on port : " + port);
+			socket = new Socket("localhost", port);
+			entree = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			sortie = new PrintStream(socket.getOutputStream());
+			
+			int port_to_listen = 0;
+			int port_to_connect = 0;
+			String[] line_content;
+			String line;
+			line = entree.readLine();
+			System.out.println(peer.port + " : receiving : " + line);
+			line_content = line.split(" ");
+			if(line_content.length == 2 && line_content[0].equals("listen"))
+				port_to_listen = Integer.parseInt(line_content[1]);
+			
+			this.peer.id = port_to_listen - 1001;//we get the id from the port because that's how we decided to attribute ports.
+			this.peer.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, peer.publicKey, "user "+this.peer.id));//set our own signature in mem
+			
+			line = entree.readLine();
+			System.out.println(peer.port + " : receiving : " + line);
+			line_content = line.split(" ");
+			if(line_content.length == 2 && line_content[0].equals("connect"))
+				port_to_connect = Integer.parseInt(line_content[1]);
+			
+			peer.serveur.disconnect();
+			
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			
+			peer.startListening(port_to_listen, -1);
+			
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			
+			peer.connect(port_to_connect);
+		}
+		catch(IOException e) {e.printStackTrace();}
+	}
+}
+
+
+
+
 
 class Serveur extends Thread 
 {
@@ -251,6 +313,8 @@ class Serveur extends Thread
 	}
 
 }
+
+
 
 class ServeurFirst extends Thread 
 {
@@ -323,6 +387,8 @@ class ServeurFirst extends Thread
 		}
 	}
 }
+
+
 
 class WelcomeLink extends Thread 
 {

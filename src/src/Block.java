@@ -9,22 +9,20 @@ public class Block
 		return digest.digest("".getBytes());
 	}
 	
-	public Block(char letter, int period, byte[] author, MessageDigest digest)
+	public Block(char letter, byte[] author, MessageDigest digest)
 	{
-		this(genese(digest), letter, period, author, digest);
+		this(genese(digest), letter, author, digest);
 	}
 	
-	public Block(byte[] head, char letter, int period, byte[] author, MessageDigest digest)
+	public Block(byte[] head, char letter, byte[] author, MessageDigest digest)
 	{
 		this.letter = letter;
-		this.period = period;
 		this.head = head;
 		this.author = author;
 		sign(digest);
 	}
 	
 	public char letter;
-	public int period;
 	public byte[] head;
 	public byte[] author;
 	public byte[] signature;
@@ -34,9 +32,9 @@ public class Block
 		byte[] result = new byte[1 + 8 + head.length + author.length];
 		// TODO check UTF-8 String conversion
 		Binary.copy(Binary.intToBytes((int)letter, 1), result, 0);
-		Binary.copy(Binary.intToBytes(period, 8), result, 1);
-		Binary.copy(head, result, 1 + 8);
-		Binary.copy(author, result, 1 + 8 + head.length);
+		//Binary.copy(Binary.intToBytes(period, 8), result, 1);
+		Binary.copy(head, result, 8);
+		Binary.copy(author, result, 8 + head.length);
 		
 		this.signature = digest.digest(result);
 	}
@@ -46,10 +44,10 @@ public class Block
 		byte[] result = new byte[1 + 8 + head.length + author.length + signature.length];
 		// TODO check UTF-8 String conversion
 		Binary.copy(Binary.intToBytes((int)letter, 1), result, 0);
-		Binary.copy(Binary.intToBytes(period, 8), result, 1);
-		Binary.copy(head, result, 1 + 8);
-		Binary.copy(author, result, 1 + 8 + head.length);
-		Binary.copy(signature, result, 1 + 8 + head.length + author.length);
+		//Binary.copy(Binary.intToBytes(period, 8), result, 1);
+		Binary.copy(head, result, 8);
+		Binary.copy(author, result, 8 + head.length);
+		Binary.copy(signature, result, 8 + head.length + author.length);
 		return result;
 	}
 	

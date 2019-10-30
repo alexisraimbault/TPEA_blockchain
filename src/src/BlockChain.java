@@ -4,21 +4,22 @@ import java.util.List;
 
 public class BlockChain
 {
+	public String head;
 	public BlockChain(MessageDigest digest)
 	{
 		this.digest = digest;
 	}
 	
-	public void push(char letter, int period, byte[] author)
+	public void push(char letter, byte[] author)
 	{
 		if(blocks.size() > 0)
 		{
 			Block back = blocks.get(blocks.size() - 1);
 			byte[] head = digest.digest(back.toBytes());
-			blocks.add(new Block(head, letter, period, author, digest));
+			blocks.add(new Block(head, letter, author, digest));
 		}
 		else
-			blocks.add(new Block(letter, period, author, digest));
+			blocks.add(new Block(letter, author, digest));
 	}
 	
 	public void pop(Block b)
