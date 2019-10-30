@@ -27,12 +27,14 @@ public class Peer
 	public Ed25519PrivateKeyParameters privateKey;
 	public Ed25519PublicKeyParameters publicKey;
 	public String signature;
+	public boolean game_started;
 	
 	public Peer()
 	{
 		
 		this.serveur = null;
 		this.connection = null;
+		this.game_started = false;
 		
 		 System.out.println("ED25519 with BC");
         Security.addProvider(new BouncyCastleProvider());
@@ -113,6 +115,33 @@ class Connection extends Thread
 	}
 }
 
+class LetterSender extends Thread
+{
+	PrintStream sortie;
+	Peer peer;
+	
+	public LetterSender(PrintStream sortie, Peer peer)
+	{
+		this.peer = peer;
+		this.sortie = sortie;
+		this.start();
+	}
+	public void run() 
+	{
+		while(true)
+		{
+			if(Math.random() < 0.01)
+				sortie.println(this.peer.memory.generateLetterMessage());
+			try {
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+			
+	}
+}
+
 
 
 class Link extends Thread 
@@ -173,6 +202,16 @@ class Link extends Thread
 							}
 						}
 						this.peer.connection.sortie.println(line);
+					}else {
+						try {
+							Thread.sleep(2000);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+						//starting game
+						System.out.println(this.peer.port + " : starting game...");
+						this.peer.game_started = true;
+						new LetterSender(this.peer.connection.sortie, this.peer);
 					}
 				}
 			}

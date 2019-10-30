@@ -14,6 +14,7 @@ public class Word {
 		this.head = head;
 		this.politician = politician;
 		this.chain = chain;
+		this.signature = null;
 	}
 	
 	public void sign(Peer peer)
@@ -28,5 +29,13 @@ public class Word {
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public String toString()
+	{
+		String result = "";
+		for(Letter l : chain)
+			result += l.letter;
+		return result;
 	}
 }
