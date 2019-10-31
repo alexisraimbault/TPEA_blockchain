@@ -1,7 +1,8 @@
 package src;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+
+import org.bouncycastle.util.encoders.Hex;
 
 public class Word {
 	public String head;
@@ -24,7 +25,19 @@ public class Word {
 			result += l.toBinaryString();
 		result += head;
 		result += politician;
-		this.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, tp1.sha256(result)));
+		this.signature = Hex.toHexString(Ed25519Bc.sign(peer.privateKey, tp1.sha256(result)));
+	}
+	
+	public String generateMessage()
+	{
+		String result = "";
+		for(Letter l : chain)
+		{
+			result = result + "letter " + l.letter + " " + Hex.toHexString(l.head) + " " + Hex.toHexString(l.author) + " " + Hex.toHexString(l.signature) + " ";
+		}
+		result += politician + " ";
+		result += signature;
+		return result;
 	}
 	
 	public String toString()

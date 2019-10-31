@@ -10,6 +10,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator;
@@ -30,10 +32,11 @@ public class Peer
 	public Ed25519PublicKeyParameters publicKey;
 	public String signature;
 	public boolean game_started;
+	public int role;//0 -> author and 1 -> politician
 	
-	public Peer()
+	public Peer(int role)
 	{
-		
+		this.role = role;
 		this.serveur = null;
 		this.connection = null;
 		this.game_started = false;
@@ -188,9 +191,80 @@ class WordFinder extends Thread
 	}
 	public void run() 
 	{
+		ArrayList<String> dict = new ArrayList<String>();
+		dict.add("le");
+		dict.add("la");
+		dict.add("re");
+		dict.add("je");
+		dict.add("tu");
+		dict.add("vu");
+		dict.add("va");
+		dict.add("nu");
+		dict.add("na");
+		dict.add("ra");
+		dict.add("ma");
+		dict.add("si");
+		dict.add("fa");
+		dict.add("mi");
+		dict.add("sa");
+		dict.add("do");
+		dict.add("de");
+		dict.add("or");
+		dict.add("ou");
+		dict.add("da");
 		while(true)
 		{
-			//TODO
+			ArrayList<Word> word_pool = (ArrayList<Word>) this.peer.memory.word_pool.clone();
+			ArrayList<Letter> letter_pool = (ArrayList<Letter>) this.peer.memory.letter_pool.clone();
+			
+			if(letter_pool.size() > 0 && word_pool.size() > 0)
+			{
+				Collections.shuffle(letter_pool);
+				ArrayList<String> used_authors = new ArrayList<String>();
+				ArrayList<Letter> chain = new ArrayList<Letter>();
+				String word_in_construction = "";
+				String word_chosen = Hex.toHexString(letter_pool.get(0).head);
+				Word w_chosen = null;
+				for(Word w : word_pool)
+					if(w.signature.equals(word_chosen))
+					{
+						word_in_construction = w.toString();
+						w_chosen = w;
+					}
+						
+				for(Letter l : letter_pool)
+				{
+					if(!used_authors.contains(Hex.toHexString(l.author)) && !word_chosen.equals(Hex.toHexString(l.author)))
+					{
+						used_authors.add(Hex.toHexString(l.author));
+						word_in_construction += l.letter;
+						chain.add(l);
+						System.out.println(this.peer.port + " : checking word : " + word_in_construction);
+						if(dict.contains(word_in_construction))
+						{
+							System.out.println(this.peer.port + " : FOUND WORD !!!!!!!!!!! : " + word_in_construction);
+							System.out.println(this.peer.port + " : generating word injection message : " + word_in_construction + "...");
+							Word w = new Word(w_chosen.signature, Hex.toHexString(this.peer.publicKey.getEncoded()), chain);
+							w.sign(this.peer);
+							String injection_message = w.generateMessage();
+							//TODO checkMessage validity in mem
+							
+							//TODO apply message in mem
+							
+							//TODO send message
+							
+							//TODO in receiver : check + apply + forwarding
+							
+						}
+					}
+				}
+				
+			}
+			try {
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		}
 			
 	}
@@ -263,7 +337,10 @@ class Link extends Thread
 						//starting game
 						System.out.println(this.peer.port + " : starting game...");
 						this.peer.game_started = true;
-						new LetterSender(this.peer.connection.sortie, this.peer);
+						if(this.peer.role == 0)
+							new LetterSender(this.peer.connection.sortie, this.peer);
+						if(this.peer.role == 1)
+							new WordFinder(this.peer.connection.sortie, this.peer);
 					}
 				}
 				if(line_content.length == 6 && line_content[0].equals("inject_letter"))
