@@ -8,11 +8,7 @@ public class Letter
 	{
 		this.letter = letter;
 		this.author = author;
-		try {
-			this.head = tp1.sha256("");
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
+		this.head = tp1.sha256("");
 	}
 	
 	public Letter(byte[] head, char letter, byte[] author)
@@ -36,7 +32,7 @@ public class Letter
 		Binary.copy(author, result, 1 + head.length);
 		
 		try {
-			this.signature = Ed25519Bc.sign(peer.privateKey, peer.publicKey, tp1.bytesToHex(tp1.sha256(result)));
+			this.signature = Ed25519Bc.sign(peer.privateKey, tp1.sha256(result));
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		}

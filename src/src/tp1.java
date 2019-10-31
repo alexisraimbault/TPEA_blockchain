@@ -1,4 +1,5 @@
 package src;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -46,9 +47,15 @@ public class tp1 {
 		return digest.digest(s);
 	}
 	
-	public static byte[] sha256(String s) throws NoSuchAlgorithmException
+	public static byte[] sha256(String s)
 	{
-		return sha256(s.getBytes(StandardCharsets.UTF_8));
+		try {
+			return sha256(s.getBytes(StandardCharsets.UTF_8));
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return null;
 	}
 	
 	public static byte[] hash_id(String nom, String prenom) throws NoSuchAlgorithmException 
@@ -154,9 +161,13 @@ public class tp1 {
 			//System.out.println(mine("koff", "jean-pierre", 15));
 			
 			//plot_mining();
-			System.out.println(sha256("").length);
-			System.out.println(generateKey().length);
-			System.out.println(bytesToHex(generateKey()));
+			String test = "be3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855f41422fc5ed9c97fd7ee9a9c58203dd80bf0101f142d4a0be438a51f5d6639c9";
+			System.out.println(bytesToHex(sha256(test)).getBytes(StandardCharsets.UTF_8).equals(bytesToHex(sha256(test)).getBytes(StandardCharsets.UTF_8)));
+			System.out.println(test.getBytes(StandardCharsets.UTF_8).equals(test.getBytes(StandardCharsets.UTF_8)));
+			System.out.println(bytesToHex(sha256(test)).getBytes());
+			System.out.println(bytesToHex(sha256(test)).getBytes());
+			//System.out.println(generateKey().length);
+			//System.out.println(bytesToHex(generateKey()));
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

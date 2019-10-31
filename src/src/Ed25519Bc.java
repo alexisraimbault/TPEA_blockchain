@@ -4,6 +4,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
+import java.util.Base64;
 import java.io.UnsupportedEncodingException;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.CryptoException;
@@ -15,13 +16,13 @@ import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.encoders.Hex;
 
 public class Ed25519Bc {
 	
-	public static byte[] sign(Ed25519PrivateKeyParameters privateKey, Ed25519PublicKeyParameters publicKey, String mess)
+	public static byte[] sign(Ed25519PrivateKeyParameters privateKey, byte[] message)
 	{
 		try {
-			byte[] message = mess.getBytes("utf-8");
 			Signer signer = new Ed25519Signer();
 	        signer.init(true, privateKey);
 	        signer.update(message, 0, message.length);
@@ -52,17 +53,26 @@ public class Ed25519Bc {
         AsymmetricCipherKeyPair asymmetricCipherKeyPair = keyPairGenerator.generateKeyPair();
         Ed25519PrivateKeyParameters privateKey = (Ed25519PrivateKeyParameters) asymmetricCipherKeyPair.getPrivate();
         Ed25519PublicKeyParameters publicKey = (Ed25519PublicKeyParameters) asymmetricCipherKeyPair.getPublic();
-        // the message
-        byte[] message = "Message to sign".getBytes("utf-8");
+        
+        String message = "Message to sign";
+        byte[] signatureTest = sign(privateKey,message.getBytes("utf-8"));
+        System.out.println(Base64.getEncoder().encodeToString(signatureTest));
+        System.out.println("TEST : " + verify(publicKey, message.getBytes("utf-8"), Hex.decode(Hex.toHexString(signatureTest))));
+        
+        
+        
         // create the signature
         Signer signer = new Ed25519Signer();
         signer.init(true, privateKey);
-        signer.update(message, 0, message.length);
+        signer.update(message.getBytes("utf-8"), 0, message.getBytes("utf-8").length);
         byte[] signature = signer.generateSignature();
+        
+        
+        
         // verify the signature
         Signer verifier = new Ed25519Signer();
         verifier.init(false, publicKey);
-        verifier.update(message, 0, message.length);
+        verifier.update(message.getBytes("utf-8"), 0, message.getBytes("utf-8").length);
         boolean shouldVerify = verifier.verifySignature(signature);
         // output
         byte[] privateKeyEncoded = privateKey.getEncoded();
@@ -74,6 +84,10 @@ public class Ed25519Bc {
         System.out.println(
                 "signature Length  :" + signature.length + " Data:" + tp1.bytesToHex(signature));
         System.out.println("signature correct :" + shouldVerify);
+        
+        
+        
+        
         // rebuild the keys
         System.out.println("Rebuild the keys and verify the signature with rebuild public key");
         Ed25519PrivateKeyParameters privateKeyRebuild = new Ed25519PrivateKeyParameters(privateKeyEncoded, 0);
@@ -90,7 +104,7 @@ public class Ed25519Bc {
         // verify the signature with rebuild public key
         Signer verifierRebuild = new Ed25519Signer();
         verifierRebuild.init(false, publicKeyRebuild);
-        verifierRebuild.update(message, 0, message.length);
+        verifierRebuild.update(message.getBytes("utf-8"), 0, message.getBytes("utf-8").length);
         boolean shouldVerifyRebuild = verifierRebuild.verifySignature(signature);
         System.out.println("signature correct :" + shouldVerifyRebuild + " with rebuild public key");
     }

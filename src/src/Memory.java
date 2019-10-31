@@ -2,9 +2,12 @@ package src;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.util.encoders.Hex;
+
 
 public class Memory {
 	public Peer peer;
@@ -14,12 +17,13 @@ public class Memory {
 	public ArrayList<Word> word_pool;
 	public ArrayList<Letter> letter_pool;
 	
-	public Memory(int size, Peer peer)
+	public Memory(int size, Peer peer) throws NoSuchAlgorithmException
 	{
 		this.size = size;
 		this.peer = peer;
 		public_keys = new Ed25519PublicKeyParameters[size];
 		letter_bags = new ArrayList<ArrayList<Character>>();
+		letter_pool = new ArrayList<Letter>();
 		
 		
 		String alphabet = "abcdefghijklmnopqrstuvwxyz";
@@ -35,47 +39,45 @@ public class Memory {
 		
 		Word w1 = null;
 		this.word_pool = new ArrayList<Word>();
-		try {
-			w1 = new Word(tp1.bytesToHex(tp1.sha256("")), "", new ArrayList<Letter>());
-			w1.signature = "";
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
+		w1 = new Word(tp1.bytesToHex(tp1.sha256("")), "", new ArrayList<Letter>());
+		w1.signature = w1.head;//for the 1st empty word
 		this.word_pool.add(w1);
 	}
 	
-	public String generateLetterMessage()
+	public String generateLetterMessage() throws NoSuchAlgorithmException
 	{
 		ArrayList<Character> letter_bag = letter_bags.get(peer.id);
 		if(!letter_bag.isEmpty())
 		{
 			Collections.shuffle(letter_bag);
 			char letter = letter_bag.remove(0);
-			String author = tp1.bytesToHex(peer.publicKey.getEncoded());
+			String author = Hex.toHexString(peer.publicKey.getEncoded());
 			Collections.shuffle(word_pool);
-			String head = word_pool.get(0).head;
-			String signature = null;
-			try {
-				signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, peer.publicKey,tp1.bytesToHex(tp1.sha256(letter + head + author))));
-			} catch (NoSuchAlgorithmException e) {
-				e.printStackTrace();
-			}
-			return "inject_letter " + peer.id + " " + letter + " " + author + " " + head + " " + signature;
+			String head = word_pool.get(0).signature;
+			byte[] signature = null;
+			signature = Ed25519Bc.sign(peer.privateKey, tp1.sha256(letter + head + author));
+			String decoded = null;
+			decoded = Hex.toHexString(signature);
+			byte[] encoded = Hex.decode(decoded);
+			//System.out.println("TEST : " + Ed25519Bc.verify(new Ed25519PublicKeyParameters( Hex.decode(Hex.toHexString(peer.publicKey.getEncoded())),0), tp1.sha256(letter + head + author) , Hex.decode(decoded)));
+			return"inject_letter " + peer.id + " " + letter + " " + author + " " + head + " " + decoded;
 		}
 		return null;
 	}
 	
 	public boolean verifyLetterMessage(byte[] message, char letter, String author, String head, String signature)
 	{
-		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(author.getBytes(), 0);
+		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(Hex.decode(author), 0);
+		
 		int user_idx = 0;
 		//check if key is regstered
 		boolean validKey = false;
 		for (Ed25519PublicKeyParameters k : this.public_keys)
 		{
-			if(k.getEncoded().equals(pk.getEncoded()))
+			if(Arrays.equals(k.getEncoded(),pk.getEncoded()))
 			{
 				validKey = true;
+				//System.out.println("TEST : " + Ed25519Bc.verify(k, tp1.sha256(letter + head + author) , Hex.decode(signature)));
 			}
 			if(!validKey)
 				user_idx++;
@@ -83,26 +85,35 @@ public class Memory {
 				
 		if(!validKey)
 			return false;
+		System.out.println("key : ok");
 		
 		//check if user has that letter in bag
 		if(!letter_bags.get(user_idx).contains(letter))
 			return false;
 		
+		System.out.println("letter : ok");
 		//check if wordPool contains head
+		
 		boolean wordPool_check = false;
 		for(Word w : word_pool)
 		{
-			if(w.signature == head)
+			if(w.signature.equals(head))
 			{
 				wordPool_check = true;
 			}
 		}
+		
 		if(!wordPool_check)
 			return false;
 		
-		//check if signature is correct
-		if(!Ed25519Bc.verify(pk, message, signature.getBytes()))
+		System.out.println("word_pool : ok");
+		
+		 byte[]encoded = Hex.decode(signature); 
+		 
+		if(!Ed25519Bc.verify(pk, message, encoded))
 			return false;
+		
+		System.out.println("signature : ok");
 		
 		return true;
 		
@@ -113,7 +124,7 @@ public class Memory {
 		int user_idx = 0;
 		for (Ed25519PublicKeyParameters k : this.public_keys)
 		{
-			if(k.getEncoded().equals(pk.getEncoded()))
+			if(Arrays.equals(k.getEncoded(),pk.getEncoded()))
 				return user_idx;
 			user_idx++;
 		}
@@ -122,14 +133,14 @@ public class Memory {
 	
 	public void applyLetterMessage(char letter, String author, String head, String signature)
 	{
-		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(author.getBytes(), 0);
+		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(Hex.decode(author), 0);
 		int user_idx = findIdxFromKey(pk);
 		
 		//removing letter from user bag
-		letter_bags.get(user_idx).remove(letter);
+		letter_bags.get(user_idx).remove((Object)letter);
 		
 		//adding letter to letter_pool
-		letter_pool.add(new Letter(head.getBytes(), letter, author.getBytes()));
+		letter_pool.add(new Letter(head.getBytes(), letter, Hex.decode(author)));
 		
 	}
 }

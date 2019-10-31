@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -16,6 +18,7 @@ import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.encoders.Hex;
 
 public class Peer
 {
@@ -48,14 +51,22 @@ public class Peer
         privateKey = (Ed25519PrivateKeyParameters) asymmetricCipherKeyPair.getPrivate();
         publicKey = (Ed25519PublicKeyParameters) asymmetricCipherKeyPair.getPublic();
         
-        this.memory = new Memory(3, this);
+        try {
+			this.memory = new Memory(3, this);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public void startListeningFirst (int port)
 	{
 		this.port = port;
 		this.id = 0;
-		this.signature = tp1.bytesToHex(Ed25519Bc.sign(this.privateKey, this.publicKey, "user "+this.id));
+		try {
+			this.signature = tp1.bytesToHex(Ed25519Bc.sign(this.privateKey, ("user "+this.id).getBytes("utf-8")));
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
 		new ServeurFirst(this);
 	}
 	
@@ -104,7 +115,10 @@ class Connection extends Thread
 			
 			String line;
 			line = entree.readLine();//hello
-			sortie.println("register " + this.peer.id + " " + tp1.bytesToHex(this.peer.publicKey.getEncoded()));
+			//trgistring to our own memory
+			this.peer.memory.public_keys[peer.id] =  peer.publicKey;
+			//registring to the other peers's memory 
+			sortie.println("register " + this.peer.id + " " + Hex.toHexString(this.peer.publicKey.getEncoded()));
 			while(true)
 			{
 				line = entree.readLine();
@@ -130,8 +144,15 @@ class LetterSender extends Thread
 	{
 		while(true)
 		{
-			if(Math.random() < 0.01)
-				sortie.println(this.peer.memory.generateLetterMessage());
+			if(Math.random() < 0.04)
+			{
+				try {
+					sortie.println(this.peer.memory.generateLetterMessage());
+				} catch (NoSuchAlgorithmException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
 			try {
 				Thread.sleep(500);
 			} catch (InterruptedException e) {
@@ -142,7 +163,26 @@ class LetterSender extends Thread
 	}
 }
 
-
+class WordFinder extends Thread
+{
+	PrintStream sortie;
+	Peer peer;
+	
+	public WordFinder(PrintStream sortie, Peer peer)
+	{
+		this.peer = peer;
+		this.sortie = sortie;
+		this.start();
+	}
+	public void run() 
+	{
+		while(true)
+		{
+			//TODO
+		}
+			
+	}
+}
 
 class Link extends Thread 
 {
@@ -189,7 +229,7 @@ class Link extends Thread
 				if(line_content.length == 3 && line_content[0].equals("register"))
 				{
 					//set public key in mem
-					this.peer.memory.public_keys[Integer.parseInt(line_content[1])] = new Ed25519PublicKeyParameters(line_content[2].getBytes(), 0);
+					this.peer.memory.public_keys[Integer.parseInt(line_content[1])] = new Ed25519PublicKeyParameters(Hex.decode(line_content[2]), 0);
 					//forward message if necessary
 					if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)
 					{
@@ -212,6 +252,35 @@ class Link extends Thread
 						System.out.println(this.peer.port + " : starting game...");
 						this.peer.game_started = true;
 						new LetterSender(this.peer.connection.sortie, this.peer);
+					}
+				}
+				if(line_content.length == 6 && line_content[0].equals("inject_letter"))
+				{
+					System.out.println(this.peer.port + " : checking injection...");
+					int id = Integer.parseInt(line_content[1]);
+					char letter = line_content[2].charAt(0);
+					String author = line_content[3];
+					String head = line_content[4];
+					String signature = line_content[5];
+					try {
+						if(peer.memory.verifyLetterMessage(tp1.sha256(letter+head+author), letter, author, head, signature))
+						{
+							System.out.println(this.peer.port + " : injection valid, applying...");
+							peer.memory.applyLetterMessage(letter, author, head, signature);
+							
+							//forward message if necessary
+							if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)
+							{
+								System.out.println(this.peer.port + " : forwarding injection...");
+								this.peer.connection.sortie.println(line);
+							}
+							
+						}else {
+							System.out.println(this.peer.port + " : injection not valid...");
+						}
+					} catch (NumberFormatException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
 					}
 				}
 			}
@@ -261,7 +330,7 @@ class ConnectionFirst extends Thread
 				port_to_listen = Integer.parseInt(line_content[1]);
 			
 			this.peer.id = port_to_listen - 1001;//we get the id from the port because that's how we decided to attribute ports.
-			this.peer.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, peer.publicKey, "user "+this.peer.id));//set our own signature in mem
+			this.peer.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, ("user "+this.peer.id).getBytes("utf-8")));//set our own signature in mem
 			
 			line = entree.readLine();
 			System.out.println(peer.port + " : receiving : " + line);

@@ -24,11 +24,7 @@ public class Word {
 			result += l.toBinaryString();
 		result += head;
 		result += politician;
-		try {
-			this.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, peer.publicKey, tp1.bytesToHex(tp1.sha256(result))));
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
+		this.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, tp1.sha256(result)));
 	}
 	
 	public String toString()
