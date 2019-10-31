@@ -18,6 +18,14 @@ public class Word {
 		this.signature = null;
 	}
 	
+	public Word(String head, String politician, ArrayList<Letter> chain, String signature)
+	{
+		this.head = head;
+		this.politician = politician;
+		this.chain = chain;
+		this.signature = signature;
+	}
+	
 	public void sign(Peer peer)
 	{
 		String result = "";
@@ -28,13 +36,14 @@ public class Word {
 		this.signature = Hex.toHexString(Ed25519Bc.sign(peer.privateKey, tp1.sha256(result)));
 	}
 	
-	public String generateMessage()
+	public String generateMessage(Peer peer)
 	{
-		String result = "";
+		String result = "inject_word " + peer.id + " ";
 		for(Letter l : chain)
 		{
 			result = result + "letter " + l.letter + " " + Hex.toHexString(l.head) + " " + Hex.toHexString(l.author) + " " + Hex.toHexString(l.signature) + " ";
 		}
+		result += head + " ";
 		result += politician + " ";
 		result += signature;
 		return result;

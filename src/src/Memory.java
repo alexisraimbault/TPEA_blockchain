@@ -131,6 +131,18 @@ public class Memory {
 		return -1;
 	}
 	
+	public int checkLetterSignature(byte[] signature)
+	{
+		int user_idx = 0;
+		for (Letter l : this.letter_pool)
+		{
+			if(Arrays.equals(l.signature, signature))
+				return user_idx;
+			user_idx++;
+		}
+		return -1;
+	}
+	
 	public void applyLetterMessage(char letter, String author, String head, String signature)
 	{
 		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(Hex.decode(author), 0);
@@ -140,7 +152,116 @@ public class Memory {
 		letter_bags.get(user_idx).remove((Object)letter);
 		
 		//adding letter to letter_pool
-		letter_pool.add(new Letter(Hex.decode(head), letter, Hex.decode(author)));
+		letter_pool.add(new Letter(Hex.decode(head), letter, Hex.decode(author), Hex.decode(signature)));
+		
+	}
+	
+	public boolean verifyWordMessage(String message)
+	{
+		ArrayList<Letter> red_chain = new ArrayList<Letter>();
+		String[] message_content = message.split(" ");
+		//valid keyword
+		int parser = 0;
+		if(!message_content[parser].equals("inject_word"))
+			return false;
+		parser += 2;
+		//reading letters
+		while(message_content[parser].equals("letter"))
+		{
+			if(!(message_content.length >= parser + 5))
+				return false;
+			char letter = message_content[parser + 1].charAt(0);
+			byte [] head = Hex.decode(message_content[parser + 2]);
+			byte [] author = Hex.decode(message_content[parser + 3]);
+			byte [] signature = Hex.decode(message_content[parser + 4]);
+			Letter tmp_letter = new Letter(head, letter, author, signature);
+			
+			if(checkLetterSignature(signature)==-1)
+				return false;
+			red_chain.add(tmp_letter);
+			parser += 5;
+		}
+		System.out.println("letters ok");
+		
+		//reading politician public key
+		String head = message_content[parser];
+		boolean wordPool_check = false;
+		for(Word w : word_pool)
+		{
+			if(w.signature.equals(head))
+			{
+				wordPool_check = true;
+			}
+		}
+		
+		if(!wordPool_check)
+			return false;
+		
+		System.out.println("head ok");
+		
+		parser++;
+		
+		//reading politician public key
+		String politician = message_content[parser];
+		Ed25519PublicKeyParameters pk = new Ed25519PublicKeyParameters(Hex.decode(message_content[parser]), 0);
+		int politician_id = findIdxFromKey(pk);
+		if(politician_id == -1)
+			return false;
+		System.out.println("key ok");
+		
+		parser++;
+		//checking signature
+		
+		String signed_message = "";
+		for(Letter l : red_chain)
+			signed_message += l.toBinaryString();
+		signed_message += head;
+		signed_message += politician;
+		
+		if(!Ed25519Bc.verify(pk,tp1.sha256(signed_message) , Hex.decode(message_content[parser])))
+			return false;
+		
+		System.out.println("signature : ok");
+		
+		return true;
+		
+	}
+	
+	public void applyWordMessage(String message)
+	{
+		ArrayList<Letter> red_chain = new ArrayList<Letter>();
+		String[] message_content = message.split(" ");
+		//valid keyword
+		int parser = 2;
+		//reading letters
+		while(message_content[parser].equals("letter"))
+		{
+			char letter = message_content[parser + 1].charAt(0);
+			byte [] head = Hex.decode(message_content[parser + 2]);
+			byte [] author = Hex.decode(message_content[parser + 3]);
+			byte [] signature = Hex.decode(message_content[parser + 4]);
+			Letter tmp_letter = new Letter(head, letter, author, signature);
+			
+			int letter_idx = checkLetterSignature(signature);
+			red_chain.add(tmp_letter);
+			letter_pool.remove(letter_idx);//removing letter
+			parser += 5;
+		}
+		
+		//reading politician public key
+		String head = message_content[parser];
+		
+		parser++;
+		
+		//reading politician public key
+		String politician = message_content[parser];
+	
+		parser++;
+		
+		//reading signature
+		String signature = message_content[parser];
+		
+		word_pool.add(new Word(head, politician, red_chain, signature));
 		
 	}
 }

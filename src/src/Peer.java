@@ -212,6 +212,7 @@ class WordFinder extends Thread
 		dict.add("or");
 		dict.add("ou");
 		dict.add("da");
+		//TODO real dict
 		while(true)
 		{
 			ArrayList<Word> word_pool = (ArrayList<Word>) this.peer.memory.word_pool.clone();
@@ -246,15 +247,16 @@ class WordFinder extends Thread
 							System.out.println(this.peer.port + " : generating word injection message : " + word_in_construction + "...");
 							Word w = new Word(w_chosen.signature, Hex.toHexString(this.peer.publicKey.getEncoded()), chain);
 							w.sign(this.peer);
-							String injection_message = w.generateMessage();
-							//TODO checkMessage validity in mem
-							
-							//TODO apply message in mem
-							
-							//TODO send message
-							
-							//TODO in receiver : check + apply + forwarding
-							
+							String injection_message = w.generateMessage(this.peer);
+							System.out.println(this.peer.port + " : checking validity for word injection message : " + injection_message + "...");
+							if(peer.memory.verifyWordMessage(injection_message))
+							{
+								System.out.println(this.peer.port + " : word injection message valid. Applying locally and sending to the network ...");
+								peer.memory.applyWordMessage(injection_message);
+								sortie.println(injection_message);
+							}else {
+								System.out.println(this.peer.port + " : check failed ...");
+							}
 						}
 					}
 				}
@@ -345,7 +347,7 @@ class Link extends Thread
 				}
 				if(line_content.length == 6 && line_content[0].equals("inject_letter"))
 				{
-					System.out.println(this.peer.port + " : checking injection...");
+					System.out.println(this.peer.port + " : checking letter injection...");
 					int id = Integer.parseInt(line_content[1]);
 					char letter = line_content[2].charAt(0);
 					String author = line_content[3];
@@ -368,8 +370,22 @@ class Link extends Thread
 							System.out.println(this.peer.port + " : injection not valid...");
 						}
 					} catch (NumberFormatException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
+					}
+				}
+				if(line_content[0].equals("inject_word"))
+				{
+					System.out.println(this.peer.port + " : checking word injection...");
+					if(this.peer.memory.verifyWordMessage(line))
+					{
+						System.out.println(this.peer.port + " : injection valid, applying...");
+						this.peer.memory.applyWordMessage(line);
+						//forward message if necessary
+						if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)
+						{
+							System.out.println(this.peer.port + " : forwarding injection...");
+							this.peer.connection.sortie.println(line);
+						}
 					}
 				}
 			}
