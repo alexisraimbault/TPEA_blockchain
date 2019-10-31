@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
@@ -62,11 +61,7 @@ public class Peer
 	{
 		this.port = port;
 		this.id = 0;
-		try {
-			this.signature = tp1.bytesToHex(Ed25519Bc.sign(this.privateKey, ("user "+this.id).getBytes("utf-8")));
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
+		this.signature = Hex.toHexString(Ed25519Bc.sign(this.privateKey, this.publicKey.getEncoded()));
 		new ServeurFirst(this);
 	}
 	
@@ -147,9 +142,26 @@ class LetterSender extends Thread
 			if(Math.random() < 0.04)
 			{
 				try {
-					sortie.println(this.peer.memory.generateLetterMessage());
+					String injection = this.peer.memory.generateLetterMessage();
+					String[] line_content = injection.split(" ");
+					if(line_content.length == 6 && line_content[0].equals("inject_letter"))
+					{
+						System.out.println(this.peer.port + " : generating injection, checking...");
+						int id = Integer.parseInt(line_content[1]);
+						char letter = line_content[2].charAt(0);
+						String author = line_content[3];
+						String head = line_content[4];
+						String signature = line_content[5];
+						if(peer.memory.verifyLetterMessage(tp1.sha256(letter+head+author), letter, author, head, signature))
+						{
+							System.out.println(this.peer.port + " : applying and sending to the network...");
+							peer.memory.applyLetterMessage(letter, author, head, signature);
+							sortie.println(injection);
+						}else {
+							System.out.println(this.peer.port + " : injection wasn't verified locally...");
+						}
+					}
 				} catch (NoSuchAlgorithmException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 			}
@@ -330,7 +342,7 @@ class ConnectionFirst extends Thread
 				port_to_listen = Integer.parseInt(line_content[1]);
 			
 			this.peer.id = port_to_listen - 1001;//we get the id from the port because that's how we decided to attribute ports.
-			this.peer.signature = tp1.bytesToHex(Ed25519Bc.sign(peer.privateKey, ("user "+this.peer.id).getBytes("utf-8")));//set our own signature in mem
+			this.peer.signature = Hex.toHexString(Ed25519Bc.sign(peer.privateKey, peer.publicKey.getEncoded()));//set our own signature in mem
 			
 			line = entree.readLine();
 			System.out.println(peer.port + " : receiving : " + line);

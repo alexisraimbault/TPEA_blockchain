@@ -39,7 +39,7 @@ public class Memory {
 		
 		Word w1 = null;
 		this.word_pool = new ArrayList<Word>();
-		w1 = new Word(tp1.bytesToHex(tp1.sha256("")), "", new ArrayList<Letter>());
+		w1 = new Word(Hex.toHexString(tp1.sha256("")), "", new ArrayList<Letter>());
 		w1.signature = w1.head;//for the 1st empty word
 		this.word_pool.add(w1);
 	}
@@ -50,7 +50,7 @@ public class Memory {
 		if(!letter_bag.isEmpty())
 		{
 			Collections.shuffle(letter_bag);
-			char letter = letter_bag.remove(0);
+			char letter = letter_bag.get(0);
 			String author = Hex.toHexString(peer.publicKey.getEncoded());
 			Collections.shuffle(word_pool);
 			String head = word_pool.get(0).signature;
@@ -140,7 +140,7 @@ public class Memory {
 		letter_bags.get(user_idx).remove((Object)letter);
 		
 		//adding letter to letter_pool
-		letter_pool.add(new Letter(head.getBytes(), letter, Hex.decode(author)));
+		letter_pool.add(new Letter(Hex.decode(head), letter, Hex.decode(author)));
 		
 	}
 }
