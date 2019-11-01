@@ -158,7 +158,7 @@ class LetterSender extends Thread
 						if(peer.memory.verifyLetterMessage(tp1.sha256(letter+head+author), letter, author, head, signature))
 						{
 							System.out.println(this.peer.port + " : applying and sending to the network...");
-							peer.memory.applyLetterMessage(letter, author, head, signature);
+							peer.memory.applyLetterMessage(letter, author, head, signature, injection);
 							sortie.println(injection);
 						}else {
 							System.out.println(this.peer.port + " : injection wasn't verified locally...");
@@ -312,6 +312,7 @@ class Link extends Thread
 			do 
 			{
 				line = entree.readLine();
+				while(this.peer.memory.updating_chain) {}//if chain is being updated, not interrupt
 				System.out.println(this.peer.port + " : receiving : " + line);
 				line_content = line.split(" ");
 				if(line_content.length == 3 && line_content[0].equals("register"))
@@ -357,7 +358,7 @@ class Link extends Thread
 						if(peer.memory.verifyLetterMessage(tp1.sha256(letter+head+author), letter, author, head, signature))
 						{
 							System.out.println(this.peer.port + " : injection valid, applying...");
-							peer.memory.applyLetterMessage(letter, author, head, signature);
+							peer.memory.applyLetterMessage(letter, author, head, signature, line);
 							
 							//forward message if necessary
 							if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)

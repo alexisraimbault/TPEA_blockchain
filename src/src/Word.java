@@ -38,14 +38,16 @@ public class Word {
 	
 	public String generateMessage(Peer peer)
 	{
-		String result = "inject_word " + peer.id + " ";
+		String result = "inject_word " + peer.id + " "+ Hex.toHexString(MerkleTree.makeComplete( peer.memory.blocks).element) + " " + peer.memory.total_points + " ";
 		for(Letter l : chain)
 		{
 			result = result + "letter " + l.letter + " " + Hex.toHexString(l.head) + " " + Hex.toHexString(l.author) + " " + Hex.toHexString(l.signature) + " ";
 		}
 		result += head + " ";
 		result += politician + " ";
-		result += signature;
+		result += signature + " " + "|";
+		for(String s : peer.memory.blocks)
+			result += s + " ";
 		return result;
 	}
 	
