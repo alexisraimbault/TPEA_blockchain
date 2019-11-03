@@ -21,7 +21,7 @@ public class Memory {
 	public HashMap<Character, Integer> letter_points;
 	public ArrayList<String> blocks;//all operations 
 	public int total_points;
-	public boolean updating_chain;
+	public boolean updating_memory;
 	
 	public Memory(int size, Peer peer) throws NoSuchAlgorithmException
 	{
@@ -80,7 +80,7 @@ public class Memory {
 		w1 = new Word(Hex.toHexString(tp1.sha256("")), "", new ArrayList<Letter>());
 		w1.signature = w1.head;//for the 1st empty word
 		this.word_pool.add(w1);
-		this.updating_chain = false;
+		this.updating_memory = false;
 	}
 	
 	
@@ -109,7 +109,6 @@ public class Memory {
 		w1 = new Word(Hex.toHexString(tp1.sha256("")), "", new ArrayList<Letter>());
 		w1.signature = w1.head;//for the 1st empty word
 		this.word_pool.add(w1);
-		this.updating_chain = false;
 	}
 	
 	public String generateLetterMessage() throws NoSuchAlgorithmException
@@ -299,12 +298,13 @@ public class Memory {
 		//verifying Merkle root
 		if(!message_content[parser].equals(Hex.toHexString(MerkleTree.makeComplete(blocks).element)))
 		{
-			//TODO check total points and maybe update chain
+			parser++;
+
 			System.out.println("merkle root check failed");
+			
 			if(this.total_points < Integer.parseInt(message_content[parser]))
 			{
 				System.out.println("better chain received, updating chain...");
-				this.updating_chain = true;
 				ArrayList<String> blocks_save = (ArrayList<String>) this.blocks.clone();
 				
 				this.undoOperations();
@@ -323,18 +323,19 @@ public class Memory {
 						this.reinitializeMemory();
 						for(String msg : blocks_save)
 							applyWordMessage(msg);
-						this.updating_chain = false;
 						return false;
 					}
 				}
-				
-				this.updating_chain = false;
+				parser++;
 			}else {
 				return false;
 			}
 		}
+		else
+		{
+			parser +=2;
+		}
 		System.out.println("Merkle root ok");
-		parser += 2;
 		
 		//reading letters
 		while(message_content[parser].equals("letter"))

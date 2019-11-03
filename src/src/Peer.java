@@ -33,9 +33,14 @@ public class Peer
 	public String signature;
 	public boolean game_started;
 	public int role;//0 -> author and 1 -> politician
+	public Dict_utils dict;
+	public final int nb_awaited_peers = 5;
+	public boolean isDominant;
 	
-	public Peer(int role)
+	public Peer(int role, Dict_utils dict)
 	{
+		this.isDominant = false;
+		this.dict = dict;
 		this.role = role;
 		this.serveur = null;
 		this.connection = null;
@@ -54,7 +59,7 @@ public class Peer
         publicKey = (Ed25519PublicKeyParameters) asymmetricCipherKeyPair.getPublic();
         
         try {
-			this.memory = new Memory(3, this);
+			this.memory = new Memory(nb_awaited_peers, this);
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		}
@@ -62,6 +67,7 @@ public class Peer
 	
 	public void startListeningFirst (int port)
 	{
+		this.isDominant = true;
 		this.port = port;
 		this.id = 0;
 		this.signature = Hex.toHexString(Ed25519Bc.sign(this.privateKey, this.publicKey.getEncoded()));
@@ -149,7 +155,7 @@ class LetterSender extends Thread
 					String[] line_content = injection.split(" ");
 					if(line_content.length == 6 && line_content[0].equals("inject_letter"))
 					{
-						System.out.println(this.peer.port + " : generating injection, checking...");
+						System.out.println(this.peer.port + " : generating letter injection, checking...");
 						int id = Integer.parseInt(line_content[1]);
 						char letter = line_content[2].charAt(0);
 						String author = line_content[3];
@@ -191,80 +197,64 @@ class WordFinder extends Thread
 	}
 	public void run() 
 	{
-		ArrayList<String> dict = new ArrayList<String>();
-		dict.add("le");
-		dict.add("la");
-		dict.add("re");
-		dict.add("je");
-		dict.add("tu");
-		dict.add("vu");
-		dict.add("va");
-		dict.add("nu");
-		dict.add("na");
-		dict.add("ra");
-		dict.add("ma");
-		dict.add("si");
-		dict.add("fa");
-		dict.add("mi");
-		dict.add("sa");
-		dict.add("do");
-		dict.add("de");
-		dict.add("or");
-		dict.add("ou");
-		dict.add("da");
-		//TODO real dict
 		while(true)
 		{
-			ArrayList<Word> word_pool = (ArrayList<Word>) this.peer.memory.word_pool.clone();
-			ArrayList<Letter> letter_pool = (ArrayList<Letter>) this.peer.memory.letter_pool.clone();
-			
-			if(letter_pool.size() > 0 && word_pool.size() > 0)
+			if(Math.random() < 0.01)
 			{
-				Collections.shuffle(letter_pool);
-				ArrayList<String> used_authors = new ArrayList<String>();
-				ArrayList<Letter> chain = new ArrayList<Letter>();
-				String word_in_construction = "";
-				String word_chosen = Hex.toHexString(letter_pool.get(0).head);
-				Word w_chosen = null;
-				for(Word w : word_pool)
-					if(w.signature.equals(word_chosen))
-					{
-						word_in_construction = w.toString();
-						w_chosen = w;
-					}
-						
-				for(Letter l : letter_pool)
+				ArrayList<Word> word_pool = (ArrayList<Word>) this.peer.memory.word_pool.clone();
+				ArrayList<Letter> letter_pool = (ArrayList<Letter>) this.peer.memory.letter_pool.clone();
+				
+				if(letter_pool.size() > 0 && word_pool.size() > 0)
 				{
-					if(!used_authors.contains(Hex.toHexString(l.author)) && !word_chosen.equals(Hex.toHexString(l.author)))
-					{
-						used_authors.add(Hex.toHexString(l.author));
-						word_in_construction += l.letter;
-						chain.add(l);
-						System.out.println(this.peer.port + " : checking word : " + word_in_construction);
-						if(dict.contains(word_in_construction))
+					Collections.shuffle(letter_pool);
+					ArrayList<String> used_authors = new ArrayList<String>();
+					ArrayList<Letter> chain = new ArrayList<Letter>();
+					String word_in_construction = "";
+					String word_chosen = Hex.toHexString(letter_pool.get(0).head);
+					Word w_chosen = null;
+					for(Word w : word_pool)
+						if(w.signature.equals(word_chosen))
 						{
-							System.out.println(this.peer.port + " : FOUND WORD !!!!!!!!!!! : " + word_in_construction);
-							System.out.println(this.peer.port + " : generating word injection message : " + word_in_construction + "...");
-							Word w = new Word(w_chosen.signature, Hex.toHexString(this.peer.publicKey.getEncoded()), chain);
-							w.sign(this.peer);
-							String injection_message = w.generateMessage(this.peer);
-							System.out.println(this.peer.port + " : checking validity for word injection message : " + injection_message + "...");
-							if(peer.memory.verifyWordMessage(injection_message))
-							{
-								System.out.println(this.peer.port + " : word injection message valid. Applying locally and sending to the network ...");
-								peer.memory.applyWordMessage(injection_message);
-								sortie.println(injection_message);
-							}else {
-								System.out.println(this.peer.port + " : check failed ...");
-							}
+							word_in_construction = w.toString();
+							w_chosen = w;
+						}
+							
+					for(Letter l : letter_pool)
+					{
+						if(!used_authors.contains(Hex.toHexString(l.author)) && !word_chosen.equals(Hex.toHexString(l.author)))
+						{
+							used_authors.add(Hex.toHexString(l.author));
+							word_in_construction += l.letter;
+							chain.add(l);
+							//System.out.println(this.peer.port + " : checking word : " + word_in_construction);
+							
 						}
 					}
+					
+					if(peer.dict.contains(word_in_construction))
+					{
+						System.out.println(this.peer.port + " : FOUND WORD !  : " + word_in_construction);
+						System.out.println(this.peer.port + " : generating word injection message ...");
+						Word w = new Word(w_chosen.signature, Hex.toHexString(this.peer.publicKey.getEncoded()), chain);
+						w.sign(this.peer);
+						String injection_message = w.generateMessage(this.peer);
+						System.out.println(this.peer.port + " : checking validity for word injection message...");
+						if(peer.memory.verifyWordMessage(injection_message))
+						{
+							System.out.println(this.peer.port + " : word injection message valid. sending to the network ...");
+							//peer.memory.applyWordMessage(injection_message);
+							sortie.println(injection_message);
+						}else {
+							System.out.println(this.peer.port + " : check failed ...");
+						}
+					}
+					
 				}
-				
 			}
 			try {
-				Thread.sleep(200);
+				Thread.sleep(50);
 			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -312,11 +302,12 @@ class Link extends Thread
 			do 
 			{
 				line = entree.readLine();
-				while(this.peer.memory.updating_chain) {}//if chain is being updated, not interrupt
-				System.out.println(this.peer.port + " : receiving : " + line);
+				while(this.peer.memory.updating_memory) {}//if chain is being updated, not interrupt
+				this.peer.memory.updating_memory = true;
 				line_content = line.split(" ");
 				if(line_content.length == 3 && line_content[0].equals("register"))
 				{
+					System.out.println(this.peer.port + " : receiving : " + line);
 					//set public key in mem
 					this.peer.memory.public_keys[Integer.parseInt(line_content[1])] = new Ed25519PublicKeyParameters(Hex.decode(line_content[2]), 0);
 					//forward message if necessary
@@ -348,6 +339,7 @@ class Link extends Thread
 				}
 				if(line_content.length == 6 && line_content[0].equals("inject_letter"))
 				{
+					System.out.println(this.peer.port + " : receiving letter injection");
 					System.out.println(this.peer.port + " : checking letter injection...");
 					int id = Integer.parseInt(line_content[1]);
 					char letter = line_content[2].charAt(0);
@@ -376,19 +368,21 @@ class Link extends Thread
 				}
 				if(line_content[0].equals("inject_word"))
 				{
+					System.out.println(this.peer.port + " : receiving word injection");
 					System.out.println(this.peer.port + " : checking word injection...");
 					if(this.peer.memory.verifyWordMessage(line))
 					{
 						System.out.println(this.peer.port + " : injection valid, applying...");
 						this.peer.memory.applyWordMessage(line);
 						//forward message if necessary
-						if(Integer.parseInt(line_content[1]) != (this.peer.id + 1)%this.peer.memory.size)
+						if(Integer.parseInt(line_content[1]) != this.peer.id)
 						{
 							System.out.println(this.peer.port + " : forwarding injection...");
 							this.peer.connection.sortie.println(line);
 						}
 					}
 				}
+				this.peer.memory.updating_memory = false;
 			}
 			while(!line.equals("goodbye"));
 			
@@ -534,15 +528,17 @@ class ServeurFirst extends Thread
 {
 	public int nb_peers;
 	public Peer peer;
-	public final int nb_max_peers = 3;
+	public final int nb_max_peers;
 	public WelcomeLink[] peer_sockets;
 	
 	public ServeurFirst(Peer peer)
 	{
+		this.peer = peer;
+		this.nb_max_peers = peer.nb_awaited_peers;
 		peer_sockets = new WelcomeLink[nb_max_peers];
 		peer_sockets[0] = null;
 		nb_peers = 1; 
-		this.peer = peer;
+		
 		this.start();
 	}
 	
